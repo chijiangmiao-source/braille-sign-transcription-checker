@@ -102,6 +102,29 @@ test.describe("核算用量", () => {
     await expect(page.getByTestId("usage-error")).toContainText("小写");
   });
 
+  test("核算请求返回前修改门牌文本，过期结果被丢弃", async ({ page }) => {
+    // 延迟用量响应，模拟请求在途期间修改文本
+    await page.route("**/api/usage", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ cells: 3, dots: 5, empty_cells: 0, number_signs: 0 }),
+      });
+    });
+    await page.goto("/");
+    await page.getByTestId("text-input").fill("abc");
+    const response = page.waitForResponse("**/api/usage");
+    await page.getByTestId("usage-submit").click();
+    await page.getByTestId("text-input").fill("abcd");
+    await response;
+
+    // 响应落地后用量区域仍保持清空，按钮恢复可用
+    await expect(page.getByTestId("usage-submit")).toBeEnabled();
+    await expect(page.getByTestId("usage")).toBeHidden();
+    await expect(page.getByTestId("usage-error")).toBeHidden();
+  });
+
   test("完成用量核算后仍可按原方式提交点位记录并得到通过或不通过", async ({ page }) => {
     await page.goto("/");
     await page.getByTestId("text-input").fill("a1b 2");

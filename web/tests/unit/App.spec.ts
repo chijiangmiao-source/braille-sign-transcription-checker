@@ -158,6 +158,42 @@ describe("App 核算用量", () => {
     expect(wrapper.get('[data-testid="usage-error"]').text()).toContain("小写");
   });
 
+  it("核算请求返回前修改门牌文本，过期结果被丢弃且用量保持清空", async () => {
+    let resolveUsage: (value: UsageStats) => void = () => {};
+    mockedFetchUsage.mockImplementation(
+      () => new Promise<UsageStats>((resolve) => { resolveUsage = resolve; }),
+    );
+    const wrapper = mount(App);
+    await wrapper.get('[data-testid="text-input"]').setValue("abc");
+    await wrapper.get('[data-testid="usage-submit"]').trigger("click");
+
+    // 请求在途期间修改门牌文本
+    await wrapper.get('[data-testid="text-input"]').setValue("abcd");
+    resolveUsage({ cells: 3, dots: 5, empty_cells: 0, number_signs: 0 });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="usage"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="usage-error"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="usage-submit"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("核算请求返回前修改门牌文本，过期失败信息同样被丢弃", async () => {
+    let rejectUsage: (reason: unknown) => void = () => {};
+    mockedFetchUsage.mockImplementation(
+      () => new Promise<UsageStats>((_resolve, reject) => { rejectUsage = reject; }),
+    );
+    const wrapper = mount(App);
+    await wrapper.get('[data-testid="text-input"]').setValue("abc");
+    await wrapper.get('[data-testid="usage-submit"]').trigger("click");
+
+    await wrapper.get('[data-testid="text-input"]').setValue("abcd");
+    rejectUsage(new Error("无法连接核算服务，请检查网络后重试"));
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="usage"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="usage-error"]').exists()).toBe(false);
+  });
+
   it("核算期间禁用核算按钮但不阻止编辑点位记录", async () => {
     let resolveUsage: (value: UsageStats) => void = () => {};
     mockedFetchUsage.mockImplementation(

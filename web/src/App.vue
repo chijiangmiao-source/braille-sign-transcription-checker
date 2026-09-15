@@ -50,7 +50,8 @@ async function recount() {
   usage.value = null;
   usageError.value = "";
 
-  const textError = validateText(text.value);
+  const requestedText = text.value;
+  const textError = validateText(requestedText);
   if (textError) {
     usageError.value = textError;
     return;
@@ -58,8 +59,12 @@ async function recount() {
 
   usageBusy.value = true;
   try {
-    usage.value = await fetchUsage(text.value);
+    const stats = await fetchUsage(requestedText);
+    // 请求在途期间文本被修改：结果已过期，丢弃并保持用量区域清空
+    if (text.value !== requestedText) return;
+    usage.value = stats;
   } catch (e) {
+    if (text.value !== requestedText) return;
     usageError.value = e instanceof Error ? e.message : "用量核算失败，请稍后重试";
   } finally {
     usageBusy.value = false;
