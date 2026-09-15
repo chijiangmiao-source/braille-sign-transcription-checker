@@ -1,0 +1,142 @@
+# 门牌盲文点位核对
+
+门牌打样把英文与数字压成六点盲文后，质检员用本工具核对整份点位记录：输入一行门牌文本和一行点位单元，只输出**整份通过或不通过**，不定位差异位置。
+
+- Web：Vue 3 + TypeScript（Vite 构建，nginx 托管并反向代理 `/api`）
+- API：FastAPI（编码、校验、整份核对）
+- 编排：Docker Compose（`web` / `api` / `verify`）
+
+## 规则与示例
+
+### 门牌文本
+
+只允许小写 `a-z`、数字 `0-9` 和单个空格；空文本、首尾空格、连续空格都返回 422。
+
+| 输入 | 结果 |
+| --- | --- |
+| `abc 123` | ✅ 合法 |
+| `a1b 2` | ✅ 合法 |
+| `Abc` | ❌ 422（含大写） |
+| `a  b` | ❌ 422（连续空格） |
+| ` a` / `a ` | ❌ 422（首尾空格） |
+| （空） | ❌ 422（空文本） |
+
+### 点位单元
+
+每个单元只能是由 `1` 至 `6` 组成、无重复且严格升序的数字串，空点写作 `0`；其他格式整单返回 422。
+
+| 输入 | 结果 |
+| --- | --- |
+| `0` | ✅ 空点 |
+| `145` | ✅ 合法 |
+| `1 12 3456` | ✅ 合法记录 |
+| `7` | ❌ 422（超出 1-6） |
+| `11` | ❌ 422（重复且非升序） |
+| `21` | ❌ 422（非升序） |
+| `01` | ❌ 422（0 只能单独写作空点） |
+| `1  2` | ❌ 422（连续空格产生空单元） |
+
+### 编码规则
+
+| 字符 | 点位 |
+| --- | --- |
+| a-j | `1`、`12`、`14`、`145`、`15`、`124`、`1245`、`125`、`24`、`245` |
+| k-t | 在 a-j 上加点 3：`13`、`123`、`134`、`1345`、`135`、`1234`、`12345`、`1235`、`234`、`2345` |
+| u-z | `136`、`1236`、`2456`、`1346`、`13456`、`1356` |
+| 数字段 | 每段连续数字前只插入一个 `3456`，`1`-`0` 依次复用 a-j 点位 |
+| 空格 | `0` |
+
+示例：
+
+| 门牌文本 | 编码点位 |
+| --- | --- |
+| `a1b 2` | `1 3456 1 12 0 3456 12` |
+| `123` | `3456 1 12 14` |
+| `1b2` | `3456 1 12 3456 12` |
+| `a b` | `1 0 12` |
+| `door 2049` | `145 135 135 1235 0 3456 12 245 145 24` |
+
+### 整份核对
+
+编码结果与提交序列**完全相同**才通过，否则不通过；只输出整份结论，不定位差异位置。
+
+| 门牌文本 | 点位记录 | 结论 |
+| --- | --- | --- |
+| `a1b 2` | `1 3456 1 12 0 3456 12` | 通过 |
+| `a1b 2` | `1 3456 1 12 0 3456 1` | 不通过 |
+| `12` | `1 12` | 不通过（缺数字号 `3456`） |
+
+## 快速开始
+
+```bash
+docker compose up --build
+```
+
+- Web：<http://localhost:8080>
+- API：<http://localhost:8000/api/health>（交互文档见 <http://localhost:8000/docs>）
+
+宿主端口可用环境变量覆盖：
+
+```bash
+WEB_PORT=9000 API_PORT=9001 docker compose up --build
+```
+
+## 一次性验收
+
+`verify` 服务等待 `api` 与 `web` 就绪后，先跑 pytest，再对运行中的整栈做验收（直连 API、经 Web 反向代理提交核对），全部通过才以 0 退出：
+
+```bash
+docker compose --profile verify up --build --abort-on-container-exit verify
+```
+
+## 测试
+
+| 范围 | 工具 | 命令 |
+| --- | --- | --- |
+| 映射、数字段、整份核对、校验、API | pytest | `cd api && pip install -r requirements-dev.txt && pytest` |
+| 映射、数字段、整份核对、校验、页面行为 | Vitest | `cd web && npm ci && npm run test:unit` |
+| 页面联调（需先启动 compose 栈） | Playwright | `cd web && npx playwright install chromium && npm run test:e2e` |
+
+也可以在容器里跑 Vitest：`docker compose --profile test run --rm web-test`。
+
+Playwright 默认访问 `http://localhost:8080`，可用 `E2E_BASE_URL` 或 `WEB_PORT` 覆盖。
+
+## API
+
+### `POST /api/check`
+
+请求：
+
+```json
+{ "text": "a1b 2", "cells": "1 3456 1 12 0 3456 12" }
+```
+
+响应：
+
+- `200`：`{"passed": true}` 或 `{"passed": false}`（仅整份结论）
+- `422`：文本或点位格式不合法，`detail` 中带有原因
+
+### `GET /api/health`
+
+返回 `{"status": "ok"}`，用于健康检查。
+
+## 目录结构
+
+```
+├── docker-compose.yml      # web / api / verify / web-test 编排
+├── api/
+│   ├── app/
+│   │   ├── braille.py      # 编码映射、数字段、校验、整份核对
+│   │   └── main.py         # FastAPI 入口
+│   ├── tests/              # pytest：映射、数字段、整份核对、校验、API
+│   ├── accept.py           # verify 服务的整栈验收脚本
+│   └── Dockerfile          # runtime / test 两个阶段
+└── web/
+    ├── src/
+    │   ├── App.vue         # 核对页面（提交即清旧结论，失败显示明确错误）
+    │   └── lib/            # braille.ts 编码与校验、api.ts 客户端
+    ├── tests/unit/         # Vitest
+    ├── e2e/                # Playwright 页面联调
+    ├── nginx.conf          # 托管构建产物并代理 /api
+    └── Dockerfile          # deps / build / test / runtime 阶段
+```

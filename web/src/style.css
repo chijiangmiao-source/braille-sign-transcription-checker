@@ -1,0 +1,91 @@
+:root {
+  color: #1f2933;
+  background: #f5f7fa;
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  box-sizing: border-box;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0 0 8px;
+}
+
+.hint {
+  color: #6b7280;
+  margin: 0 0 24px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form label {
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.form input {
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid #cbd2d9;
+  border-radius: 6px;
+}
+
+.form input:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+}
+
+.form button {
+  margin-top: 16px;
+  padding: 10px 16px;
+  font-size: 15px;
+  color: #fff;
+  background: #2563eb;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.form button:disabled {
+  background: #9aa5b1;
+  cursor: not-allowed;
+}
+
+.verdict {
+  margin-top: 24px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.verdict.pass {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.verdict.fail {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.error {
+  margin-top: 24px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  color: #92400e;
+  background: #fef3c7;
+}
