@@ -8,6 +8,7 @@ from app.braille import (
     check_record,
     encode_text,
     parse_cells,
+    usage_stats,
     validate_text,
 )
 
@@ -84,6 +85,59 @@ class TestWholeRecordCheck:
     def test_full_text_round_trip(self):
         text = "door 2049 room 306"
         assert check_record(text, " ".join(encode_text(text))) is True
+
+
+class TestUsageStats:
+    def test_plain_letters(self):
+        # abc -> 1 12 14
+        assert usage_stats("abc") == {
+            "cells": 3,
+            "dots": 5,
+            "empty_cells": 0,
+            "number_signs": 0,
+        }
+
+    def test_digit_run_and_space(self):
+        # ab 12 -> 1 12 0 3456 1 12
+        assert usage_stats("ab 12") == {
+            "cells": 6,
+            "dots": 10,
+            "empty_cells": 1,
+            "number_signs": 1,
+        }
+
+    def test_number_sign_per_digit_run(self):
+        # 1b2 -> 3456 1 12 3456 12
+        assert usage_stats("1b2") == {
+            "cells": 5,
+            "dots": 13,
+            "empty_cells": 0,
+            "number_signs": 2,
+        }
+
+    def test_space_counts_as_empty_cell_without_dots(self):
+        # a b -> 1 0 12
+        assert usage_stats("a b") == {
+            "cells": 3,
+            "dots": 3,
+            "empty_cells": 1,
+            "number_signs": 0,
+        }
+
+    @pytest.mark.parametrize("text", ["door 2049", "abc 123 x9", "z9", "0"])
+    def test_stats_derive_from_encoding(self, text):
+        cells = encode_text(text)
+        stats = usage_stats(text)
+        assert stats["cells"] == len(cells)
+        assert stats["dots"] == sum(len(c) for c in cells if c != "0")
+        assert stats["empty_cells"] == cells.count("0")
+        assert stats["number_signs"] == cells.count(NUMBER_SIGN)
+        assert all(value >= 0 for value in stats.values())
+
+    @pytest.mark.parametrize("text", ["", " a", "a ", "a  b", "A", "中"])
+    def test_invalid_text_raises(self, text):
+        with pytest.raises(ValueError):
+            usage_stats(text)
 
 
 class TestTextValidation:

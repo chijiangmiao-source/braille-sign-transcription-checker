@@ -78,3 +78,18 @@ def encode_text(text: str) -> list[str]:
 def check_record(text: str, cells_line: str) -> bool:
     """整份核对：编码结果与提交序列完全相同才通过。"""
     return parse_cells(cells_line) == encode_text(text)
+
+
+def usage_stats(text: str) -> dict[str, int]:
+    """核算门牌文本的压印用量：单元总数、凸点总数、空点数、数字号数。
+
+    统计完全由 encode_text 的编码序列推导，不引入第二套映射规则。
+    """
+    validate_text(text)
+    cells = encode_text(text)
+    return {
+        "cells": len(cells),
+        "dots": sum(len(cell) for cell in cells if cell != EMPTY_CELL),
+        "empty_cells": cells.count(EMPTY_CELL),
+        "number_signs": cells.count(NUMBER_SIGN),
+    }

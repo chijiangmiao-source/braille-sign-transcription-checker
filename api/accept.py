@@ -18,6 +18,9 @@ PASS_CASE = {"text": "a1b 2", "cells": "1 3456 1 12 0 3456 12"}
 FAIL_CASE = {"text": "a1b 2", "cells": "1 3456 1 12 0 3456 1"}
 INVALID_TEXT_CASE = {"text": "A1", "cells": "1"}
 INVALID_CELLS_CASE = {"text": "a1", "cells": "1 3456 21"}
+USAGE_CASE = {"text": "ab 12"}
+USAGE_EXPECTED = {"cells": 6, "dots": 10, "empty_cells": 1, "number_signs": 1}
+USAGE_INVALID_CASE = {"text": "a  b"}
 
 failures: list[str] = []
 
@@ -59,6 +62,13 @@ def main() -> int:
     resp = httpx.post(f"{API_URL}/api/check", json=INVALID_CELLS_CASE, timeout=5)
     check("API 非法点位返回 422", resp.status_code == 422, f"HTTP {resp.status_code}")
 
+    resp = httpx.post(f"{API_URL}/api/usage", json=USAGE_CASE, timeout=5)
+    check("API 用量核算", resp.status_code == 200 and resp.json() == USAGE_EXPECTED,
+          f"HTTP {resp.status_code} {resp.text}")
+
+    resp = httpx.post(f"{API_URL}/api/usage", json=USAGE_INVALID_CASE, timeout=5)
+    check("API 用量核算非法文本返回 422", resp.status_code == 422, f"HTTP {resp.status_code}")
+
     page = httpx.get(f"{WEB_URL}/", timeout=5)
     check("Web 页面包含应用挂载点", page.status_code == 200 and 'id="app"' in page.text)
     asset = re.search(r'src="(/assets/[^"]+\.js)"', page.text)
@@ -76,6 +86,10 @@ def main() -> int:
 
     resp = httpx.post(f"{WEB_URL}/api/check", json=INVALID_TEXT_CASE, timeout=5)
     check("经 Web 代理非法输入返回 422", resp.status_code == 422, f"HTTP {resp.status_code}")
+
+    resp = httpx.post(f"{WEB_URL}/api/usage", json=USAGE_CASE, timeout=5)
+    check("经 Web 代理用量核算", resp.status_code == 200 and resp.json() == USAGE_EXPECTED,
+          f"HTTP {resp.status_code} {resp.text}")
 
     print(f"\n验收结果：{'全部通过' if not failures else f'{len(failures)} 项失败'}")
     return 1 if failures else 0

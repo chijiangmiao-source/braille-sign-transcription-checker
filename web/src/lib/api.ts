@@ -6,6 +6,14 @@ interface CheckResponse {
   passed: boolean;
 }
 
+/** 用量核算结果：单元总数、凸点总数、空点数、数字号数。 */
+export interface UsageStats {
+  cells: number;
+  dots: number;
+  empty_cells: number;
+  number_signs: number;
+}
+
 export async function checkRecord(text: string, cells: string): Promise<boolean> {
   let res: Response;
   try {
@@ -25,6 +33,26 @@ export async function checkRecord(text: string, cells: string): Promise<boolean>
   }
   const data = (await res.json()) as CheckResponse;
   return data.passed;
+}
+
+export async function fetchUsage(text: string): Promise<UsageStats> {
+  let res: Response;
+  try {
+    res = await fetch("/api/usage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  } catch {
+    throw new CheckError("无法连接核算服务，请检查网络后重试");
+  }
+  if (res.status === 422) {
+    throw new CheckError(`输入未通过校验：${await readDetail(res)}`);
+  }
+  if (!res.ok) {
+    throw new CheckError(`核算服务异常（HTTP ${res.status}）`);
+  }
+  return (await res.json()) as UsageStats;
 }
 
 async function readDetail(res: Response): Promise<string> {
